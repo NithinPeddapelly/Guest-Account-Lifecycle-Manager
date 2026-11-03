@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Put this file in the repo root and merge it to the default branch.
+reviews:
+  profile: chill
+  path_filters:
+    - "!**/package-lock.json"
+  path_instructions:
+    - path: "**"
+      instructions: |
+        Flag any credential, token, app password or .env content in code, docs or config.
+        Flag any new dependency unless Node 20 built-ins or an existing dependency cannot do the job.
+    - path: "backend/src/**"
+      instructions: |
+        Project rules (see Context/architecture-context.md and Context/code-standards.md):
+        - Only backend/src/services/nextcloud.js may call Nextcloud.
+        - Use `lastLogin` (milliseconds) as the login value. Do not mix it with `lastLoginTimestamp` (seconds).
+        - Inactivity means no login. Never describe or implement it as file activity.
+        - Every lifecycle state change must write a lifecycle_history row, in the same transaction as the status update.
+        - Flag any route that changes state without admin authentication. Authentication is not implemented yet, so flag new unauthenticated mutating routes.
+        - Only call Nextcloud endpoints marked verified in Context/architecture-context.md.
+    - path: "backend/src/controllers/**"
+      instructions: |
+        Check that input is validated before any logic runs, errors return `{ "error": "message" }` with the right status code, and controllers stay thin.
+    - path: "backend/src/routes/**"
+      instructions: |
+        Check that every route that changes state is protected, and that routes only map URLs to controller functions.
+    - path: "backend/src/db/**"
+      instructions: |
+        Parameterized queries only, never string-built SQL. Status values must match the CHECK constraint in schema.sql.
+        schema.sql runs only on first database creation, so flag schema changes that do not update the data model in Context/architecture-context.md.
+    - path: "backend/src/jobs/**"
+      instructions: |
+        Jobs must be idempotent. A failure on one guest must not stop the check for the others.
+        Flag logic that re-flags a guest after a Keep or Renew decision.

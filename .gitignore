@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+.env
+backend/.env
+frontend/.env
+
+
+dist/
+build/
+*.log
+
+nextcloud-data/
+postgres-data/
+
+
+**/.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+
+/Context/
+/AGENTS.md
