@@ -1,0 +1,2 @@
+# The build context is backend/, so this excludes backend/.env from the image build.
+.env

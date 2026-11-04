@@ -38,6 +38,16 @@ Current stack:
 - Docker Compose
 - Hourly in-process scheduler (built-in `setInterval`)
 
+## Local setup
+
+1. Copy the root `.env.example` to `.env`.
+2. Copy `backend/.env.example` to `backend/.env`.
+3. Set `NEXTCLOUD_APP_PASSWORD` in `backend/.env` to a Nextcloud app password.
+4. Keep all `APP_DB_*` values in both files aligned. Compose uses the root `.env`; direct backend runs use `backend/.env`.
+5. Start the stack with `docker compose up -d`.
+
+The environment files are local secrets and must not be committed.
+
 Where things stand
 
 We've already spent time testing the Nextcloud API locally to understand what information is available before building the main features.

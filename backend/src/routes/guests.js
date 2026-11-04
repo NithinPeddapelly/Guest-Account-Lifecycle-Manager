@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const guestsController = require("../controllers/guestsController");
+const { requireAdmin } = require("../middleware/adminAuth");
 
+router.use(requireAdmin);
 router.get("/", guestsController.listGuests);
 router.post("/", guestsController.registerGuest);
 router.patch("/:id/review", guestsController.reviewGuest);

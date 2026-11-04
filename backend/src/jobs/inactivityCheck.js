@@ -14,22 +14,41 @@ async function checkInactivity() {
   );
 
   const cutoff = Date.now() - THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+  const reviewWindowStart = new Date(cutoff);
 
   for (const guest of guests) {
     try {
+      if (guest.last_reviewed_at && new Date(guest.last_reviewed_at) >= reviewWindowStart) continue;
+
       const live = await nextcloud.getUser(guest.nextcloud_user_id);
       const lastLoginMs = Number(live?.lastLogin || 0);
 
       if (lastLoginMs > 0 && lastLoginMs < cutoff) {
-        await pool.query(
-          `UPDATE guests SET status = 'review', last_known_login = $1 WHERE id = $2`,
-          [new Date(lastLoginMs), guest.id]
-        );
-        await pool.query(
-          `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
-           VALUES ($1, 'flagged_for_review', 'system', $2)`,
-          [guest.id, `No login for over ${THRESHOLD_DAYS} days`]
-        );
+        let client;
+        try {
+          client = await pool.connect();
+          await client.query("BEGIN");
+          const { rows } = await client.query(
+            `UPDATE guests
+             SET status = 'review', last_known_login = $1
+             WHERE id = $2 AND status = 'active'
+             RETURNING id`,
+            [new Date(lastLoginMs), guest.id]
+          );
+          if (rows.length > 0) {
+            await client.query(
+              `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
+               VALUES ($1, 'flagged_for_review', 'system', $2)`,
+              [guest.id, `No login for over ${THRESHOLD_DAYS} days`]
+            );
+          }
+          await client.query("COMMIT");
+        } catch (err) {
+          if (client) await client.query("ROLLBACK").catch(() => {});
+          throw err;
+        } finally {
+          client?.release();
+        }
       }
     } catch (err) {
       console.error(`[jobs] Inactivity check failed for guest ${guest.id}:`, err.message);

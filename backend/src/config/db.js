@@ -1,11 +1,16 @@
 const { Pool } = require("pg");
 
+function requiredEnv(name) {
+  if (!process.env[name]) throw new Error(`${name} must be set`);
+  return process.env[name];
+}
+
 const pool = new Pool({
-  host: process.env.APP_DB_HOST || "localhost",
-  port: process.env.APP_DB_PORT || 5432,
-  database: process.env.APP_DB_NAME || "guest_lifecycle",
-  user: process.env.APP_DB_USER || "lifecycle_admin",
-  password: process.env.APP_DB_PASSWORD || "changeme",
+  host: requiredEnv("APP_DB_HOST"),
+  port: requiredEnv("APP_DB_PORT"),
+  database: requiredEnv("APP_DB_NAME"),
+  user: requiredEnv("APP_DB_USER"),
+  password: requiredEnv("APP_DB_PASSWORD"),
 });
 
 pool.on("error", (err) => {

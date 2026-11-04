@@ -1,6 +1,8 @@
 # Related Work & Novelty
 
-Guest/external access exists in Nextcloud, Microsoft Teams, Google Workspace, and similar platforms. None of them govern it — none track ownership, enforce review, or audit the full lifecycle of that access.
+Guest/external access exists in Nextcloud, Microsoft Teams, Google Workspace, and similar platforms. This project focuses on a specific gap in Nextcloud: the Guests app and standard OCS user API provide guest accounts, sharing, authentication and login data, but not an external owner, guest-level expiry policy, review decision workflow or lifecycle history.
+
+This is not a claim that other platforms lack governance. Microsoft Entra supports [recurring guest access reviews](https://learn.microsoft.com/en-us/entra/id-governance/manage-guest-access-with-access-reviews) for Microsoft 365 groups and applications, and [entitlement management](https://learn.microsoft.com/en-us/entra/architecture/6-secure-access-entitlement-managment) supports time-limited access with expiration. Those capabilities provide useful comparison points; this project adds a similar governance layer for the Nextcloud data and workflow that the project owns.
 
 This gap is confirmed, not assumed. See [nextcloud/server#61398](https://github.com/nextcloud/server/issues/61398) — "Add lifecycle controls for guest users (owner, expiration, renewal workflow)." Status at time of writing: open, labeled "0. Needs triage," no milestone, 7 community reactions. It was opened by a community member (`kaffeeringe`) and triaged/labeled by a Nextcloud contributor (`nfebe`) — it is a community-raised, maintainer-acknowledged gap, not a confirmed roadmap item.
 
