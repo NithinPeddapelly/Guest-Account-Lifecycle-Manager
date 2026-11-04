@@ -1,6 +1,6 @@
 services:
   nextcloud:
-    image: nextcloud:latest
+    image: nextcloud:32.0.15-apache
     container_name: nextcloud
     ports:
       - "8080:80"
@@ -12,16 +12,16 @@ services:
     image: postgres:16
     container_name: lifecycle-db
     environment:
-      POSTGRES_DB: ${APP_DB_NAME:-guest_lifecycle}
-      POSTGRES_USER: ${APP_DB_USER:-lifecycle_admin}
-      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${APP_DB_NAME:?APP_DB_NAME must be set}
+      POSTGRES_USER: ${APP_DB_USER:?APP_DB_USER must be set}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-lifecycle_admin} -d ${APP_DB_NAME:-guest_lifecycle}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -34,6 +34,12 @@ services:
       - "4000:4000"
     env_file:
       - ./backend/.env
+    environment:
+      APP_DB_HOST: ${APP_DB_HOST:?APP_DB_HOST must be set}
+      APP_DB_PORT: ${APP_DB_PORT:?APP_DB_PORT must be set}
+      APP_DB_NAME: ${APP_DB_NAME:?APP_DB_NAME must be set}
+      APP_DB_USER: ${APP_DB_USER:?APP_DB_USER must be set}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
     depends_on:
       app-db:
         condition: service_healthy

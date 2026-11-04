@@ -1,13 +1,31 @@
-const baseUrl = process.env.NEXTCLOUD_BASE_URL || "http://localhost:8080";
-const user = process.env.NEXTCLOUD_ADMIN_USER || "admin";
-const password = process.env.NEXTCLOUD_APP_PASSWORD || "";
+const baseUrl = new URL(process.env.NEXTCLOUD_BASE_URL || "http://localhost:8080");
+const localHttpHosts = new Set(["localhost", "127.0.0.1", "::1", "nextcloud"]);
+if (baseUrl.protocol !== "https:" && !(baseUrl.protocol === "http:" && localHttpHosts.has(baseUrl.hostname))) {
+  throw new Error("NEXTCLOUD_BASE_URL must use HTTPS outside local or private Compose networking");
+}
+
+const user = process.env.NEXTCLOUD_ADMIN_USER;
+const password = process.env.NEXTCLOUD_APP_PASSWORD;
+if (!user || !password) throw new Error("NEXTCLOUD_ADMIN_USER and NEXTCLOUD_APP_PASSWORD must be set");
+const REQUEST_TIMEOUT_MS = 10_000;
 const headers = {
   "OCS-APIRequest": "true",
   Authorization: "Basic " + Buffer.from(user + ":" + password).toString("base64"),
 };
 
 async function request(path) {
-  const res = await fetch(`${baseUrl}${path}?format=json`, { headers });
+  let res;
+  try {
+    res = await fetch(new URL(`${path}?format=json`, baseUrl), {
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
+      throw new Error(`Nextcloud request timed out: ${path}`, { cause: err });
+    }
+    throw err;
+  }
   if (!res.ok) {
     throw new Error(`Nextcloud request failed with status ${res.status}: ${path}`);
   }

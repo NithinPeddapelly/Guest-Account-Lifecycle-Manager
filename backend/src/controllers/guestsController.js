@@ -1,6 +1,16 @@
 const { pool } = require("../config/db");
 const nextcloud = require("../services/nextcloud");
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value) {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+function isValidDate(value) {
+  return typeof value === "string" && value.trim() !== "" && !Number.isNaN(Date.parse(value));
+}
+
 /**
  * GET /api/guests
  * Combines our own lifecycle state with live data from Nextcloud
@@ -48,24 +58,35 @@ async function registerGuest(req, res) {
     return res.status(400).json({ error: "nextcloud_user_id, email, and owner are required" });
   }
 
+  let client;
   try {
-    const { rows } = await pool.query(
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
       `INSERT INTO guests (nextcloud_user_id, email, display_name, owner, purpose, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [nextcloud_user_id, email, display_name || null, owner, purpose || null, expires_at || null]
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
        VALUES ($1, 'created', $2, $3)`,
-      [rows[0].id, owner, purpose || null]
+      [rows[0].id, req.adminUser, purpose || null]
     );
 
+    await client.query("COMMIT");
     res.status(201).json(rows[0]);
   } catch (err) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Guest already registered" });
+    }
     console.error(err);
     res.status(500).json({ error: "Failed to register guest" });
+  } finally {
+    client?.release();
   }
 }
 
@@ -75,15 +96,27 @@ async function registerGuest(req, res) {
  */
 async function reviewGuest(req, res) {
   const { id } = req.params;
-  const { decision, performed_by, reason, new_expires_at } = req.body;
+  const { decision, reason, new_expires_at } = req.body;
+
+  if (!isValidUuid(id)) {
+    return res.status(400).json({ error: "id must be a valid UUID" });
+  }
 
   const validDecisions = { renew: "active", revoke: "revoked", keep: "active" };
   if (!validDecisions[decision]) {
     return res.status(400).json({ error: "decision must be one of: renew, revoke, keep" });
   }
 
+  if (decision === "renew" && !isValidDate(new_expires_at)) {
+    return res.status(400).json({ error: "new_expires_at must be a valid date" });
+  }
+
+  let client;
   try {
-    const { rows } = await pool.query(
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
       `UPDATE guests
        SET status = $1,
            expires_at = COALESCE($2, expires_at),
@@ -93,18 +126,25 @@ async function reviewGuest(req, res) {
       [validDecisions[decision], decision === "renew" ? new_expires_at : null, id]
     );
 
-    if (rows.length === 0) return res.status(404).json({ error: "Guest not found" });
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Guest not found" });
+    }
 
-    await pool.query(
+    await client.query(
       `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
        VALUES ($1, $2, $3, $4)`,
-      [id, decision, performed_by || "unknown", reason || null]
+      [id, decision, req.adminUser, reason || null]
     );
 
+    await client.query("COMMIT");
     res.json(rows[0]);
   } catch (err) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
     console.error(err);
     res.status(500).json({ error: "Failed to review guest" });
+  } finally {
+    client?.release();
   }
 }
 
@@ -113,6 +153,10 @@ async function reviewGuest(req, res) {
  */
 async function getGuestHistory(req, res) {
   const { id } = req.params;
+  if (!isValidUuid(id)) {
+    return res.status(400).json({ error: "id must be a valid UUID" });
+  }
+
   try {
     const { rows } = await pool.query(
       "SELECT * FROM lifecycle_history WHERE guest_id = $1 ORDER BY occurred_at DESC",

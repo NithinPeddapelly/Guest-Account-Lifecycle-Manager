@@ -9,20 +9,41 @@ const WARNING_DAYS = Number(process.env.EXPIRY_WARNING_DAYS || 7);
  */
 async function checkExpiry() {
   const warningCutoff = new Date(Date.now() + WARNING_DAYS * 24 * 60 * 60 * 1000);
+  const reviewWindowStart = new Date(Date.now() - WARNING_DAYS * 24 * 60 * 60 * 1000);
 
   const { rows: approaching } = await pool.query(
     `SELECT * FROM guests
-     WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= $1`,
-    [warningCutoff]
+     WHERE status = 'active' AND expires_at IS NOT NULL
+       AND expires_at > now() AND expires_at <= $1
+       AND (last_reviewed_at IS NULL OR last_reviewed_at < $2)`,
+    [warningCutoff, reviewWindowStart]
   );
 
   for (const guest of approaching) {
-    await pool.query(`UPDATE guests SET status = 'review' WHERE id = $1`, [guest.id]);
-    await pool.query(
-      `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
-       VALUES ($1, 'flagged_for_review', 'system', 'Approaching expiry')`,
-      [guest.id]
-    );
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        `UPDATE guests SET status = 'review'
+         WHERE id = $1 AND status = 'active'
+         RETURNING id`,
+        [guest.id]
+      );
+      if (rows.length > 0) {
+        await client.query(
+          `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
+           VALUES ($1, 'flagged_for_review', 'system', 'Approaching expiry')`,
+          [guest.id]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      if (client) await client.query("ROLLBACK").catch(() => {});
+      console.error(`[jobs] Expiry check failed for guest ${guest.id}:`, err.message);
+    } finally {
+      client?.release();
+    }
   }
 
   const { rows: expired } = await pool.query(
@@ -31,12 +52,30 @@ async function checkExpiry() {
   );
 
   for (const guest of expired) {
-    await pool.query(`UPDATE guests SET status = 'expired' WHERE id = $1`, [guest.id]);
-    await pool.query(
-      `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
-       VALUES ($1, 'expired', 'system', NULL)`,
-      [guest.id]
-    );
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        `UPDATE guests SET status = 'expired'
+         WHERE id = $1 AND status = $2
+         RETURNING id`,
+        [guest.id, guest.status]
+      );
+      if (rows.length > 0) {
+        await client.query(
+          `INSERT INTO lifecycle_history (guest_id, action, performed_by, reason)
+           VALUES ($1, 'expired', 'system', NULL)`,
+          [guest.id]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      if (client) await client.query("ROLLBACK").catch(() => {});
+      console.error(`[jobs] Expiry check failed for guest ${guest.id}:`, err.message);
+    } finally {
+      client?.release();
+    }
   }
 }
 
