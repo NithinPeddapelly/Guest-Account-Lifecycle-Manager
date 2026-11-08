@@ -1,5 +1,5 @@
 const baseUrl = new URL(process.env.NEXTCLOUD_BASE_URL || "http://localhost:8080");
-const localHttpHosts = new Set(["localhost", "127.0.0.1", "::1", "nextcloud"]);
+const localHttpHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "nextcloud", "host.docker.internal"]);
 if (baseUrl.protocol !== "https:" && !(baseUrl.protocol === "http:" && localHttpHosts.has(baseUrl.hostname))) {
   throw new Error("NEXTCLOUD_BASE_URL must use HTTPS outside local or private Compose networking");
 }
@@ -16,7 +16,10 @@ const headers = {
 async function request(path) {
   let res;
   try {
-    res = await fetch(new URL(`${path}?format=json`, baseUrl), {
+    const url = new URL(baseUrl);
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+    url.search = "format=json";
+    res = await fetch(url, {
       headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });

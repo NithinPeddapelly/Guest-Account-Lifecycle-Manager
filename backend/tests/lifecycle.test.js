@@ -219,9 +219,14 @@ test("registerGuest returns 409 for a duplicate guest", async () => {
 
 test("expiry check excludes expired approaching guests, suppresses recent reviews, guards stale updates, and continues after failures", async () => {
   const clients = [
-    clientFor(async (sql) => {
+    clientFor(async (sql, params) => {
       if (sql === "BEGIN" || sql === "COMMIT") return;
-      if (sql.startsWith("UPDATE guests")) return { rows: [] };
+      if (sql.includes("SET status = 'review'")) {
+        assert.equal(params.length, 2);
+        assert.equal(params[0], "approaching-stale");
+        assert.ok(params[1] instanceof Date);
+        return { rows: [] };
+      }
       assert.fail(`unexpected stale-guest SQL: ${sql}`);
     }),
     clientFor(async (sql) => {
@@ -230,9 +235,14 @@ test("expiry check excludes expired approaching guests, suppresses recent review
       if (sql === "ROLLBACK") return;
       assert.fail(`unexpected failed-guest SQL: ${sql}`);
     }),
-    clientFor(async (sql) => {
+    clientFor(async (sql, params) => {
       if (sql === "BEGIN" || sql === "COMMIT") return;
-      if (sql.startsWith("UPDATE guests")) return { rows: [{ id: "approaching-good" }] };
+      if (sql.includes("SET status = 'review'")) {
+        assert.equal(params.length, 2);
+        assert.equal(params[0], "approaching-good");
+        assert.ok(params[1] instanceof Date);
+        return { rows: [{ id: "approaching-good" }] };
+      }
       if (sql.startsWith("INSERT INTO lifecycle_history")) return;
       assert.fail(`unexpected good-guest SQL: ${sql}`);
     }),
@@ -285,9 +295,14 @@ test("inactivity check skips recently reviewed guests, guards stale updates, and
       if (sql.startsWith("UPDATE guests")) return { rows: [] };
       assert.fail(`unexpected stale-guest SQL: ${sql}`);
     }),
-    clientFor(async (sql) => {
+    clientFor(async (sql, params) => {
       if (sql === "BEGIN" || sql === "COMMIT") return;
-      if (sql.startsWith("UPDATE guests")) return { rows: [{ id: "good" }] };
+      if (sql.includes("SET status = 'review'")) {
+        assert.equal(params.length, 3);
+        assert.equal(params[1], "good");
+        assert.ok(params[2] instanceof Date);
+        return { rows: [{ id: "good" }] };
+      }
       if (sql.startsWith("INSERT INTO lifecycle_history")) return;
       assert.fail(`unexpected good-guest SQL: ${sql}`);
     }),

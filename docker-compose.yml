@@ -1,19 +1,14 @@
 services:
-  nextcloud:
-    image: nextcloud:32.0.15-apache
-    container_name: nextcloud
-    ports:
-      - "8080:80"
-    volumes:
-      - nextcloud-data:/var/www/html
-    restart: unless-stopped
-
   app-db:
     image: postgres:16
     container_name: lifecycle-db
     environment:
       POSTGRES_DB: ${APP_DB_NAME:?APP_DB_NAME must be set}
       POSTGRES_USER: ${APP_DB_USER:?APP_DB_USER must be set}
+      # Existing postgres-data volumes keep their original role password;
+      # APP_DB_PASSWORD must match it. To rotate, run
+      # ALTER ROLE <user> WITH PASSWORD '<new-password>' as a database admin,
+      # then update APP_DB_PASSWORD in both .env files and restart the stack.
       POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
     ports:
       - "127.0.0.1:5432:5432"
@@ -35,16 +30,17 @@ services:
     env_file:
       - ./backend/.env
     environment:
+      NEXTCLOUD_BASE_URL: http://nextcloud
       APP_DB_HOST: ${APP_DB_HOST:?APP_DB_HOST must be set}
       APP_DB_PORT: ${APP_DB_PORT:?APP_DB_PORT must be set}
       APP_DB_NAME: ${APP_DB_NAME:?APP_DB_NAME must be set}
       APP_DB_USER: ${APP_DB_USER:?APP_DB_USER must be set}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD must be set}
+    networks:
+      - default
     depends_on:
       app-db:
         condition: service_healthy
-      nextcloud:
-        condition: service_started
     restart: unless-stopped
 
 volumes:

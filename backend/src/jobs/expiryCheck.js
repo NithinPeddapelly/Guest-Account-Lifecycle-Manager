@@ -27,8 +27,9 @@ async function checkExpiry() {
       const { rows } = await client.query(
         `UPDATE guests SET status = 'review'
          WHERE id = $1 AND status = 'active'
+           AND (last_reviewed_at IS NULL OR last_reviewed_at < $2)
          RETURNING id`,
-        [guest.id]
+        [guest.id, reviewWindowStart]
       );
       if (rows.length > 0) {
         await client.query(

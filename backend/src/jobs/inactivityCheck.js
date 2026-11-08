@@ -32,8 +32,9 @@ async function checkInactivity() {
             `UPDATE guests
              SET status = 'review', last_known_login = $1
              WHERE id = $2 AND status = 'active'
+               AND (last_reviewed_at IS NULL OR last_reviewed_at < $3)
              RETURNING id`,
-            [new Date(lastLoginMs), guest.id]
+            [new Date(lastLoginMs), guest.id, reviewWindowStart]
           );
           if (rows.length > 0) {
             await client.query(
