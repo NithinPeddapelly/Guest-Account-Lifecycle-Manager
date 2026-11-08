@@ -44,8 +44,14 @@ Current stack:
 2. Copy `backend/.env.example` to `backend/.env`.
 3. Replace the placeholder `ADMIN_TOKEN` in `backend/.env` with a unique, long random token.
 4. Set `NEXTCLOUD_ADMIN_USER` to the actual Nextcloud admin username and set `NEXTCLOUD_APP_PASSWORD` to that user's app password.
-5. For `NEXTCLOUD_BASE_URL`, `http://nextcloud` is intended only for the internal Compose network and sends the app password unencrypted there. Use HTTPS for all other deployments; the HTTP exception is based on the hostname `nextcloud`, not the network.
-6. Set `APP_DB_HOST=app-db` in the root `.env` for Compose. Keep `APP_DB_HOST=localhost` in `backend/.env` for direct runs outside Docker; the other database values do not need to be identical across both files.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:7b17f56ce7bcdc2fcce628e67de76f4e7661bbda436b4f1b2dc269aabb3c86b9 -->
+
+5. Set `NEXTCLOUD_BASE_URL` in `backend/.env` to your existing Nextcloud HTTPS URL (for example, `https://cloud.example.com`). Compose loads this value from `backend/.env`; this stack does not include a Nextcloud service. The backend container on the Compose default network needs DNS resolution and outbound access to that endpoint's HTTPS port (usually 443), including any required firewall or VPN routing. Its TLS certificate must be trusted by the container. `localhost` inside the backend container refers to that container, not the Docker host or an external Nextcloud server.
+6. Set `APP_DB_HOST=app-db` in the root `.env` for Compose. Keep `APP_DB_HOST=localhost` in `backend/.env` for direct runs outside Docker. When those runs connect to the same Compose `app-db` through `localhost:5432`, only the host differs: `APP_DB_NAME`, `APP_DB_USER`, `APP_DB_PASSWORD`, and `APP_DB_PORT=5432` must match in both files.
+
+<!-- /coderabbit-ai-generated:v1 -->
 7. Start the stack with `docker compose up -d`.
 
 The environment files are local secrets and must not be committed.

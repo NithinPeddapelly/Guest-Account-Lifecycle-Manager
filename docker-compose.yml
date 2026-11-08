@@ -30,7 +30,6 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      NEXTCLOUD_BASE_URL: http://nextcloud
       APP_DB_HOST: ${APP_DB_HOST:?APP_DB_HOST must be set}
       APP_DB_PORT: ${APP_DB_PORT:?APP_DB_PORT must be set}
       APP_DB_NAME: ${APP_DB_NAME:?APP_DB_NAME must be set}
@@ -44,5 +43,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  nextcloud-data:
   postgres-data:
